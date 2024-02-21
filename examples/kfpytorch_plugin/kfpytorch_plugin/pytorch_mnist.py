@@ -23,9 +23,11 @@ WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
 # Create an `ImageSpec` to encompass all the dependencies needed for the PyTorch task.
 # %%
 custom_image = ImageSpec(
-    name="flyte-kfpytorch-plugin",
-    packages=["torch", "torchvision", "flytekitplugins-kfpytorch", "matplotlib", "tensorboardX"],
-    registry="ghcr.io/flyteorg",
+    name="mike-demo-test-1",
+    builder="ucimage",  # as oppose to defaulting to envd
+    cuda="11.8",
+    packages=["torch", "torchvision", "flytekitplugins-kfpytorch", "matplotlib", "tensorboardX", "unionai==0.1.0"],
+    pip_index="https://download.pytorch.org/whl/cu118"
 )
 
 # %% [markdown]
@@ -37,15 +39,15 @@ custom_image = ImageSpec(
 # The following imports are required to configure the PyTorch cluster in Flyte.
 # You can load them on demand.
 # %%
-if custom_image.is_container():
-    import matplotlib.pyplot as plt
-    import torch
-    import torch.nn.functional as F
-    from flytekitplugins.kfpytorch import PyTorch, Worker
-    from tensorboardX import SummaryWriter
-    from torch import distributed as dist
-    from torch import nn, optim
-    from torchvision import datasets, transforms
+# if custom_image.is_container(): #  TODO(Mike) This check does not respect ucimage built containers
+import matplotlib.pyplot as plt
+import torch
+import torch.nn.functional as F
+from flytekitplugins.kfpytorch import PyTorch, Worker
+from tensorboardX import SummaryWriter
+from torch import distributed as dist
+from torch import nn, optim
+from torchvision import datasets, transforms
 
 # %% [markdown]
 # You can activate GPU support by either using the base image that includes the necessary GPU dependencies
@@ -55,18 +57,22 @@ if custom_image.is_container():
 # Adjust memory, GPU usage and storage settings based on whether you are
 # registering against the demo cluster or not.
 # %%
-if os.getenv("SANDBOX") != "":
+if os.getenv("SANDBOX"):
     cpu_request = "500m"
     mem_request = "500Mi"
     gpu_request = "0"
     mem_limit = "500Mi"
     gpu_limit = "0"
+    ephemeral_storage_requests = "10Gi"
+    ephemeral_storage_limit = "20Gi"
 else:
     cpu_request = "500m"
     mem_request = "4Gi"
     gpu_request = "1"
     mem_limit = "8Gi"
     gpu_limit = "1"
+    ephemeral_storage_requests = "50Gi"
+    ephemeral_storage_limit = "100Gi"
 
 
 # %% [markdown]
@@ -197,8 +203,8 @@ TrainingOutputs = typing.NamedTuple(
     retries=2,
     cache=True,
     cache_version="0.1",
-    requests=Resources(cpu=cpu_request, mem=mem_request, gpu=gpu_request),
-    limits=Resources(mem=mem_limit, gpu=gpu_limit),
+    requests=Resources(cpu=cpu_request, mem=mem_request, gpu=gpu_request, ephemeral_storage=ephemeral_storage_requests),
+    limits=Resources(mem=mem_limit, gpu=gpu_limit, ephemeral_storage=ephemeral_storage_limit),
     container_image=custom_image,
 )
 def mnist_pytorch_job(hp: Hyperparameters) -> TrainingOutputs:
